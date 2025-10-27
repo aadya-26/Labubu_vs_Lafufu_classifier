@@ -18,7 +18,7 @@ def image_to_base64(image_path):
         return None
 
 # Load corner image
-corner_img_path = r"labubu_vs_lafufu_classifier\labubu_wo_background.PNG"
+corner_img_path = r"Labubu_vs_Lafufu_classifier/labubu_wo_background.png"
 corner_img_base64 = image_to_base64(corner_img_path)
 
 # Custom CSS with corner images
@@ -418,3 +418,4 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
