@@ -3,36 +3,89 @@ from PIL import Image
 import torch
 from transformers import ViTForImageClassification, ViTImageProcessor
 import time
+import base64
+from io import BytesIO
 
 # Page config
 st.set_page_config(page_title="Labubu Detector", layout="wide", page_icon="🧸")
 
-# Custom CSS
-st.markdown("""
+# Function to convert image to base64
+def image_to_base64(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return None
+
+# Load corner image
+corner_img_path = r"labubu_vs_lafufu_classifier\labubu_wo_background.PNG"
+corner_img_base64 = image_to_base64(corner_img_path)
+
+# Custom CSS with corner images
+st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     
-    * {
+    * {{
         font-family: 'Inter', sans-serif;
-    }
+    }}
     
-    .stApp {
+    .stApp {{
         background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 30%, #6366f1 70%, #8b5cf6 100%);
         background-attachment: fixed;
-    }
+    }}
     
-    [data-testid="stHeader"], .css-1v3fvcr {display: none;}
+    [data-testid="stHeader"], .css-1v3fvcr {{display: none;}}
     
-    .main-container {
+    .main-container {{
         background: rgba(255, 255, 255, 0.98);
         border-radius: 30px;
         padding: 3rem 2rem;
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         max-width: 1200px;
         margin: 0 auto;
-    }
+    }}
     
-   .title {
+    .corner-image {{
+        position: fixed;
+        width: 100px;
+        height: 100px;
+        z-index: 1000;
+        opacity: 0.9;
+        transition: all 0.3s ease;
+        animation: float 3s ease-in-out infinite;
+    }}
+    
+    .corner-image:hover {{
+        opacity: 1;
+        transform: scale(1.1) !important;
+    }}
+    
+    .corner-left {{
+        top: 20px;
+        left: 20px;
+    }}
+    
+    .corner-right {{
+        top: 20px;
+        right: 20px;
+        transform: scaleX(-1);
+    }}
+    
+    @keyframes float {{
+        0%, 100% {{
+            transform: translateY(0px);
+        }}
+        50% {{
+            transform: translateY(-10px);
+        }}
+    }}
+    
+    .corner-right:hover {{
+        transform: scaleX(-1) scale(1.1) !important;
+    }}
+    
+   .title {{
         text-align: center;
         font-size: 3rem;
         font-weight: 800;
@@ -42,17 +95,18 @@ st.markdown("""
         background-clip: text;
         margin-bottom: 0.5rem;
         text-shadow: 0 2px 10px rgba(147, 197, 253, 0.3);
-    }
+        margin-top: 2rem;
+    }}
     
-    .subtitle {
+    .subtitle {{
         text-align: center;
         color: #6b7280;
         font-size: 1.1rem;
         margin-bottom: 2.5rem;
         font-weight: 500;
-    }
+    }}
 
-    .analyze-btn button {
+    .analyze-btn button {{
         background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
         color: #0f172a;
         border: none;
@@ -64,14 +118,14 @@ st.markdown("""
         transition: all 0.3s ease;
         margin-bottom: 2rem;
         box-shadow: 0 8px 20px rgba(251, 191, 36, 0.4);
-    }
+    }}
 
-    .analyze-btn button:hover {
+    .analyze-btn button:hover {{
         transform: translateY(-3px);
         box-shadow: 0 12px 30px rgba(251, 191, 36, 0.6);
-    }
+    }}
 
-    .result-card {
+    .result-card {{
         padding: 2rem;
         animation: slideIn 0.5s ease-out, pulse 0.3s ease-in-out 0.5s;
         transform-origin: center;
@@ -79,52 +133,52 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         justify-content: center;
-    }
+    }}
 
-    @keyframes slideIn {
-        from {
+    @keyframes slideIn {{
+        from {{
             opacity: 0;
             transform: translateX(30px) scale(0.9);
-        }
-        to {
+        }}
+        to {{
             opacity: 1;
             transform: translateX(0) scale(1);
-        }
-    }
+        }}
+    }}
 
-    @keyframes pulse {
-        0%, 100% {
+    @keyframes pulse {{
+        0%, 100% {{
             transform: scale(1);
-        }
-        50% {
+        }}
+        50% {{
             transform: scale(1.03);
-        }
-    }
+        }}
+    }}
 
-    .confidence-bar {
+    .confidence-bar {{
         width: 100%;
         height: 12px;
         background: rgba(255,255,255,0.3);
         border-radius: 10px;
         overflow: hidden;
         margin: 1rem 0;
-    }
+    }}
 
-    .confidence-fill {
+    .confidence-fill {{
         height: 100%;
         background: linear-gradient(90deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,1) 100%);
         border-radius: 10px;
         transition: width 1s ease-out;
         animation: fillBar 1s ease-out;
-    }
+    }}
 
-    @keyframes fillBar {
-        from {
+    @keyframes fillBar {{
+        from {{
             width: 0% !important;
-        }
-    }
+        }}
+    }}
 
-    .stats-container {
+    .stats-container {{
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 1.5rem;
@@ -132,9 +186,9 @@ st.markdown("""
         padding: 2rem;
         background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%);
         border-radius: 20px;
-    }
+    }}
 
-    .stat-box {
+    .stat-box {{
         background: white;
         padding: 1.5rem;
         border-radius: 15px;
@@ -142,29 +196,29 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         transition: all 0.3s ease;
         border: 2px solid transparent;
-    }
+    }}
 
-    .stat-box:hover {
+    .stat-box:hover {{
         transform: translateY(-5px);
         box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         border: 2px solid rgba(251, 191, 36, 0.3);
-    }
+    }}
 
-    .stat-number {
+    .stat-number {{
         font-size: 2.5rem;
         font-weight: 800;
         margin-bottom: 0.5rem;
-    }
+    }}
 
-    .stat-label {
+    .stat-label {{
         font-size: 1rem;
         color: #6b7280;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 1px;
-    }
+    }}
 
-    .image-box {
+    .image-box {{
         background: white;
         padding: 1.5rem;
         border-radius: 20px;
@@ -174,27 +228,34 @@ st.markdown("""
         flex-direction: column;
         justify-content: center;
         align-items: center;
-    }
+    }}
 
-    .image-box img {
+    .image-box img {{
         border-radius: 15px;
         width: 100% !important;
         height: auto !important;
         max-height: 450px;
         object-fit: contain;
-    }
+    }}
 
-    .stFileUploader {
+    .stFileUploader {{
         margin-bottom: 1.5rem;
-    }
+    }}
 
     /* Hide default streamlit elements */
-    .stColumn > div {
+    .stColumn > div {{
         height: 100%;
-    }
+    }}
 
 </style>
 """, unsafe_allow_html=True)
+
+# Add corner images if available
+if corner_img_base64:
+    st.markdown(f"""
+    <img src="data:image/png;base64,{corner_img_base64}" class="corner-image corner-left" alt="Labubu">
+    <img src="data:image/png;base64,{corner_img_base64}" class="corner-image corner-right" alt="Labubu">
+    """, unsafe_allow_html=True)
 
 # Initialize session state
 if 'real_count' not in st.session_state:
@@ -277,7 +338,6 @@ if uploaded_file is not None:
     col1, col2 = st.columns([1, 1], gap="large")
 
     with col1:
-        #st.markdown('<div class="image-box">', unsafe_allow_html=True)
         # Resize image to fit box width
         box_width = 500  # approximate width of the box
         img_width, img_height = image.size
@@ -292,7 +352,6 @@ if uploaded_file is not None:
         
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         st.image(resized_image, use_container_width=True, caption="📸 Your uploaded toy")
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
         # Display result if available
